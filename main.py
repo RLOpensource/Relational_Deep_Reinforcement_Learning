@@ -3,6 +3,7 @@ import tensorflow as tf
 import numpy as np
 import core as model
 import Environment
+from tensorboardX import SummaryWriter
 
 class Relational_Proximal_Policy_Optimization:
     def __init__(self):
@@ -77,6 +78,7 @@ class Relational_Proximal_Policy_Optimization:
         states = np.zeros([self.num_worker, self.height, self.width, self.channel])
         episode_score = 0
         episode = 0
+        writer = SummaryWriter()
 
         while True:
             values_list, states_list, actions_list, dones_list, rewards_list = [], [], [], [], []
@@ -104,6 +106,7 @@ class Relational_Proximal_Policy_Optimization:
                 episode_score += rewards[0]
                 if dones[0]:
                     episode += 1
+                    writer.add_scalar('data/reward', episode_score, episode)
                     print('episode :', episode, '| episode score :', episode_score)
                     episode_score = 0
 
