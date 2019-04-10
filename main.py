@@ -4,20 +4,22 @@ import numpy as np
 import core as model
 import Environment
 from tensorboardX import SummaryWriter
+import matplotlib.pyplot as plt
 
 class Relational_Proximal_Policy_Optimization:
     def __init__(self):
         self.sess = tf.Session()
         self.height, self.width, self.channel = 84, 84, 4
         self.output_size = 3
-        self.hidden = [400, 300]
+        self.hidden = [256]
         self.pi_lr = 0.00025
         self.v_lr = 0.00025
         self.ppo_eps = 0.2
-        self.epoch = 10
-        self.num_worker = 8
-        self.n_step = 128
+        self.epoch = 3
+        self.num_worker = 16
+        self.n_step = 256
         self.gamma = 0.99
+        self.batch_size = 32
         self.lamda = 0.95
 
         self.x_ph = tf.placeholder(tf.float32, shape=[None, self.height, self.width, self.channel])
@@ -26,6 +28,7 @@ class Relational_Proximal_Policy_Optimization:
         self.target_ph = tf.placeholder(tf.float32, shape=[None])
         self.old_pi_ph = tf.placeholder(tf.float32, shape=[None, self.output_size])
 
+        
         self.pi, self.v, self.attention = model.relational_network(
             x=self.x_ph,
             hidden=self.hidden,
@@ -33,6 +36,16 @@ class Relational_Proximal_Policy_Optimization:
             activation=tf.nn.relu,
             final_activation=tf.nn.softmax
         )
+        '''
+
+        self.pi, self.v, self.attention = model.network(
+            x=self.x_ph,
+            hidden=self.hidden,
+            output_size=self.output_size,
+            activation=tf.nn.relu,
+            final_activation=tf.nn.softmax
+        )
+        '''
 
         self.all_phs = [self.x_ph, self.a_ph, self.adv_ph, self.target_ph, self.old_pi_ph]
         self.get_action_ops = [self.pi, self.v, self.attention]
@@ -62,10 +75,19 @@ class Relational_Proximal_Policy_Optimization:
 
     def update(self, state, action, target, adv):
         old_pi = self.sess.run(self.pi, feed_dict={self.x_ph: state})
-        zip_ph = [state, action, adv, target, old_pi]
-        inputs = {k:v for k, v in zip(self.all_phs, zip_ph)}
+        sample_range = np.arange(len(state))
         for i in range(self.epoch):
-            self.sess.run([self.train_pi, self.train_v], feed_dict=inputs)
+            np.random.shuffle(sample_range)
+            for j in range(int(len(state) / self.batch_size)):
+                sample_idx = sample_range[self.batch_size * j : self.batch_size * (j + 1)]
+                state_batch = [state[i] for i in sample_idx]
+                action_batch = [action[i] for i in sample_idx]
+                adv_batch = [adv[i] for i in sample_idx]
+                target_batch = [target[i] for i in sample_idx]
+                old_pi_batch = [old_pi[i] for i in sample_idx]
+                zip_ph = [state_batch, action_batch, adv_batch, target_batch, old_pi_batch]
+                inputs = {k:v for k, v in zip(self.all_phs, zip_ph)}
+                self.sess.run([self.train_pi, self.train_v], feed_dict=inputs)
 
     def get_action(self, state):
         a, v, attention = self.sess.run(self.get_action_ops, feed_dict={self.x_ph: [state]})
@@ -73,9 +95,9 @@ class Relational_Proximal_Policy_Optimization:
         return action, v[0], attention[0]
 
     def test(self):
-        self.load_model(self.sess, 'model/model')
+        self.load_model('model/model')
         works, parent_conns, child_conns = [], [], []
-        for idx in range(self.num_worker):
+        for idx in range(1):
             parent_conn, child_conn = Pipe()
             work = Environment.Environment(True, idx, child_conn)
             work.start()
@@ -86,7 +108,6 @@ class Relational_Proximal_Policy_Optimization:
         states = np.zeros([self.num_worker, self.height, self.width, self.channel])
         episode_score = 0
         episode = 0
-        writer = SummaryWriter()
 
         while True:
             values_list, states_list, actions_list, dones_list, rewards_list = [], [], [], [], []
@@ -94,16 +115,24 @@ class Relational_Proximal_Policy_Optimization:
                 inf = [self.get_action(s) for s in states]
                 actions = [i[0] for i in inf]
                 values = [i[1] for i in inf]
+                attention = [i[2] for i in inf]
+
+                attention = np.stack(attention)[0][0]
+                attention = np.reshape(attention, [9, 9])
+                plt.imshow(attention, cmap='gray')
+                plt.show()
+
 
                 for parent_conn, action in zip(parent_conns, actions):
                     parent_conn.send(action)
 
-                next_states, rewards, dones = [], [], []
+                next_states, rewards, dones, real_dones = [], [], [], []
                 for parent_conn in parent_conns:
                     s, r, d, rd = parent_conn.recv()
                     next_states.append(s)
                     rewards.append(r)
                     dones.append(d)
+                    real_dones.append(rd)
 
                 states_list.append(states)
                 values_list.append(values)
@@ -112,11 +141,6 @@ class Relational_Proximal_Policy_Optimization:
                 rewards_list.append(rewards)
 
                 episode_score += rewards[0]
-                if dones[0]:
-                    episode += 1
-                    writer.add_scalar('data/reward', episode_score, episode)
-                    print('episode :', episode, '| episode score :', episode_score)
-                    episode_score = 0
 
                 states = next_states
 
@@ -125,7 +149,7 @@ class Relational_Proximal_Policy_Optimization:
         works, parent_conns, child_conns = [], [], []
         for idx in range(self.num_worker):
             parent_conn, child_conn = Pipe()
-            work = Environment.Environment(True, idx, child_conn)
+            work = Environment.Environment(True if idx == 0 else False, idx, child_conn)
             work.start()
             works.append(work)
             parent_conns.append(parent_conn)
@@ -146,12 +170,13 @@ class Relational_Proximal_Policy_Optimization:
                 for parent_conn, action in zip(parent_conns, actions):
                     parent_conn.send(action)
 
-                next_states, rewards, dones = [], [], []
+                next_states, rewards, dones, real_dones = [], [], [], []
                 for parent_conn in parent_conns:
                     s, r, d, rd = parent_conn.recv()
                     next_states.append(s)
                     rewards.append(r)
                     dones.append(d)
+                    real_dones.append(rd)
 
                 states_list.append(states)
                 values_list.append(values)
@@ -160,7 +185,7 @@ class Relational_Proximal_Policy_Optimization:
                 rewards_list.append(rewards)
 
                 episode_score += rewards[0]
-                if dones[0]:
+                if real_dones[0]:
                     episode += 1
                     writer.add_scalar('data/reward', episode_score, episode)
                     print('episode :', episode, '| episode score :', episode_score)
@@ -209,3 +234,4 @@ class Relational_Proximal_Policy_Optimization:
 if __name__ == '__main__':
     ppo = Relational_Proximal_Policy_Optimization()
     ppo.run()
+    #ppo.test()
