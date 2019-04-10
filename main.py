@@ -36,16 +36,6 @@ class Relational_Proximal_Policy_Optimization:
             activation=tf.nn.relu,
             final_activation=tf.nn.softmax
         )
-        '''
-
-        self.pi, self.v, self.attention = model.network(
-            x=self.x_ph,
-            hidden=self.hidden,
-            output_size=self.output_size,
-            activation=tf.nn.relu,
-            final_activation=tf.nn.softmax
-        )
-        '''
 
         self.all_phs = [self.x_ph, self.a_ph, self.adv_ph, self.target_ph, self.old_pi_ph]
         self.get_action_ops = [self.pi, self.v, self.attention]
@@ -117,10 +107,13 @@ class Relational_Proximal_Policy_Optimization:
                 values = [i[1] for i in inf]
                 attention = [i[2] for i in inf]
 
-                attention = np.stack(attention)[0][0]
-                attention = np.reshape(attention, [9, 9])
+                attention = np.stack(attention)[0]
+                attention = np.sum(attention, axis=0)
+                attention = np.reshape(attention, [19, 19])
                 plt.imshow(attention, cmap='gray')
-                plt.show()
+                plt.show(block=False)
+                plt.pause(0.001)
+                plt.clf()
 
 
                 for parent_conn, action in zip(parent_conns, actions):

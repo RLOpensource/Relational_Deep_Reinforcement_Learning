@@ -15,15 +15,19 @@ def get_gaes(rewards, dones, values, next_values, gamma, lamda, normalize):
     return gaes, target
 
 def attention_CNN(x):
-    x = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[8, 8], strides=[4, 4], padding='VALID', activation=tf.nn.relu)
-    x = tf.layers.conv2d(inputs=x, filters=64, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu)
+    x = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    x = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+
+    #x = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[8, 8], strides=[4, 4], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    #x = tf.layers.conv2d(inputs=x, filters=64, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    
     shape = x.get_shape()
     return x, [s.value for s in shape]
 
 def CNN(x):
-    l1 = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[8, 8], strides=[4, 4], padding='VALID', activation=tf.nn.relu)
-    l2 = tf.layers.conv2d(inputs=l1, filters=64, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu)
-    l3 = tf.layers.conv2d(inputs=l2, filters=64, kernel_size=[3, 3], strides=[1, 1], padding='VALID', activation=tf.nn.relu)
+    l1 = tf.layers.conv2d(inputs=x, filters=32, kernel_size=[8, 8], strides=[4, 4], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    l2 = tf.layers.conv2d(inputs=l1, filters=64, kernel_size=[4, 4], strides=[2, 2], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    l3 = tf.layers.conv2d(inputs=l2, filters=64, kernel_size=[3, 3], strides=[1, 1], padding='VALID', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
     shape = l3.get_shape()
     return l3, [s.value for s in shape]
 
@@ -45,15 +49,15 @@ def self_attention(query, key, value):
     return A, attention_map, [s.value for s in shape]
 
 def f_theta(self_attention):
-    f1 = tf.layers.dense(inputs=self_attention, units=256, activation=tf.nn.relu)
-    f2 = tf.layers.dense(inputs=f1, units=256, activation=tf.nn.relu)
-    f3 = tf.layers.dense(inputs=f2, units=1, activation=tf.nn.relu)
+    f1 = tf.layers.dense(inputs=self_attention, units=256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    f2 = tf.layers.dense(inputs=f1, units=256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    f3 = tf.layers.dense(inputs=f2, units=1, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
     map_size_feature = tf.squeeze(f3, axis=2)
     return map_size_feature
 
 def output_layer(f_theta, hidden, output_size, activation, final_activation):
     for h in hidden:
-        f_theta = tf.layers.dense(inputs=f_theta, units=h, activation=activation)
+        f_theta = tf.layers.dense(inputs=f_theta, units=h, activation=activation, kernel_initializer=tf.contrib.layers.xavier_initializer())
     return tf.layers.dense(inputs=f_theta, units=output_size, activation=final_activation)
 
 def network(x, hidden, output_size, activation, final_activation):
@@ -76,13 +80,11 @@ def feature_wise_max(x):
 
 def relational_network(x, hidden, output_size, activation, final_activation):
     nnk, shape = attention_CNN(x)
-    print(shape)
-    print(nnk)
     query, key, value = query_key_value(nnk, shape)
     A, attention, shape = self_attention(query, key, value)
-    normalized_residual_x = residual_layer_normalization(A, shape, query, 4)
+    normalized_residual_x = residual_layer_normalization(A, shape, query, 2)
     E_hat = feature_wise_max(normalized_residual_x)
-    E_hat = tf.layers.dense(inputs=E_hat, units=256, activation=tf.nn.relu)
+    E_hat = tf.layers.dense(inputs=E_hat, units=256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
     actor = output_layer(E_hat, [256], 3, tf.nn.relu, tf.nn.softmax)
     critic = tf.squeeze(output_layer(E_hat, [256], 1, tf.nn.relu, None), axis=1)
     return actor, critic, attention
