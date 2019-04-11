@@ -11,12 +11,12 @@ class Relational_Proximal_Policy_Optimization:
         self.sess = tf.Session()
         self.height, self.width, self.channel = 84, 84, 4
         self.output_size = 3
-        self.hidden = [256]
+        self.hidden = [256, 256]
         self.pi_lr = 0.00025
         self.v_lr = 0.00025
         self.ppo_eps = 0.2
         self.epoch = 3
-        self.num_worker = 16
+        self.num_worker = 32
         self.n_step = 256
         self.gamma = 0.99
         self.batch_size = 32
@@ -142,7 +142,7 @@ class Relational_Proximal_Policy_Optimization:
         works, parent_conns, child_conns = [], [], []
         for idx in range(self.num_worker):
             parent_conn, child_conn = Pipe()
-            work = Environment.Environment(True if idx == 0 else False, idx, child_conn)
+            work = Environment.Environment(False if idx == 0 else False, idx, child_conn)
             work.start()
             works.append(work)
             parent_conns.append(parent_conn)

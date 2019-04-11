@@ -82,11 +82,11 @@ def relational_network(x, hidden, output_size, activation, final_activation):
     nnk, shape = attention_CNN(x)
     query, key, value = query_key_value(nnk, shape)
     A, attention, shape = self_attention(query, key, value)
-    normalized_residual_x = residual_layer_normalization(A, shape, query, 2)
+    normalized_residual_x = residual_layer_normalization(A, shape, query, 4)
     E_hat = feature_wise_max(normalized_residual_x)
     E_hat = tf.layers.dense(inputs=E_hat, units=256, activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
-    actor = output_layer(E_hat, [256], 3, tf.nn.relu, tf.nn.softmax)
-    critic = tf.squeeze(output_layer(E_hat, [256], 1, tf.nn.relu, None), axis=1)
+    actor = output_layer(E_hat, hidden, output_size, tf.nn.relu, tf.nn.softmax)
+    critic = tf.squeeze(output_layer(E_hat, hidden, 1, tf.nn.relu, None), axis=1)
     return actor, critic, attention
 
 if __name__ == '__main__':
