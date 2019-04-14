@@ -109,7 +109,7 @@ class Relational_Proximal_Policy_Optimization:
 
                 attention = np.stack(attention)[0]
                 attention = np.sum(attention, axis=0)
-                attention = np.reshape(attention, [19, 19])
+                attention = np.reshape(attention, [9, 9])
                 plt.imshow(attention, cmap='gray')
                 plt.show(block=False)
                 plt.pause(0.001)
@@ -142,7 +142,7 @@ class Relational_Proximal_Policy_Optimization:
         works, parent_conns, child_conns = [], [], []
         for idx in range(self.num_worker):
             parent_conn, child_conn = Pipe()
-            work = Environment.Environment(False if idx == 0 else False, idx, child_conn)
+            work = Environment.Environment(True if idx == 0 else False, idx, child_conn)
             work.start()
             works.append(work)
             parent_conns.append(parent_conn)
@@ -226,5 +226,13 @@ class Relational_Proximal_Policy_Optimization:
 
 if __name__ == '__main__':
     ppo = Relational_Proximal_Policy_Optimization()
-    ppo.run()
-    #ppo.test()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--disc', required=True, type=str)
+
+    args = parser.parse_args()
+    print(args.disc)
+    if args.disc == 'train':
+        ppo.run()
+    elif args.disc == 'test':
+        ppo.test()
