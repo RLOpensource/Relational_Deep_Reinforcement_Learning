@@ -16,7 +16,7 @@ class Relational_Proximal_Policy_Optimization:
         self.v_lr = 0.00025
         self.ppo_eps = 0.2
         self.epoch = 3
-        self.num_worker = 32
+        self.num_worker = 16
         self.n_step = 256
         self.gamma = 0.99
         self.batch_size = 32
@@ -109,7 +109,7 @@ class Relational_Proximal_Policy_Optimization:
 
                 attention = np.stack(attention)[0]
                 attention = np.sum(attention, axis=0)
-                attention = np.reshape(attention, [9, 9])
+                attention = np.reshape(attention, [int(np.sqrt(attention.shape[0])), int(np.sqrt(attention.shape[0]))])
                 plt.imshow(attention, cmap='gray')
                 plt.show(block=False)
                 plt.pause(0.001)
@@ -142,7 +142,7 @@ class Relational_Proximal_Policy_Optimization:
         works, parent_conns, child_conns = [], [], []
         for idx in range(self.num_worker):
             parent_conn, child_conn = Pipe()
-            work = Environment.Environment(True if idx == 0 else False, idx, child_conn)
+            work = Environment.Environment(False if idx == 0 else False, idx, child_conn)
             work.start()
             works.append(work)
             parent_conns.append(parent_conn)
